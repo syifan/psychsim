@@ -1,10 +1,10 @@
 import sys
 
-from ConfigParser import SafeConfigParser
+from configparser import SafeConfigParser
 
 from argparse import ArgumentParser
 
-import StringIO
+import io
 
 
 
@@ -249,9 +249,9 @@ class MoCA:
         greta = self.world.agents['Greta']
         child = self.world.agents['Child']
 
-        for agent in self.world.agents.values():
+        for agent in list(self.world.agents.values()):
             self.world.setModel(agent.name,trueModels[agent.name])
-            for model in agent.models.keys():
+            for model in list(agent.models.keys()):
                 if model is True:
                     name = trueModels[agent.name]
                 else:
@@ -298,7 +298,7 @@ class MoCA:
 
     def runit(self,Msg):
 
-		print Msg
+		print(Msg)
 
 		for t in range(self.maxRounds + 1):
                         # self.world.agents['Child'].printModel('SmartGretaCaresNothing2')

@@ -1,5 +1,6 @@
 import itertools
 from xml.dom.minidom import Document,Element,Node,NodeList,parseString
+from functools import reduce
 
 class Action(dict):
     """
@@ -34,7 +35,7 @@ class Action(dict):
         @return: list of special parameters for this action
         @rtype: str[]
         """
-        return filter(lambda k: not k in self.special,self.keys())
+        return [k for k in list(self.keys()) if not k in self.special]
 
     def __setitem__(self,key,value):
         self._string = None
@@ -51,20 +52,20 @@ class Action(dict):
         """
         root = {}
         for key in self.special:
-            if self.has_key(key):
+            if key in self:
                 root[key] = self[key]
         return Action(root)
 
     def __str__(self):
         if self._string is None:
             elements = []
-            keys = self.keys()
+            keys = list(self.keys())
             for special in self.special:
-                if self.has_key(special):
+                if special in self:
                     elements.append(self[special])
                     keys.remove(special)
             keys.sort()
-            elements += map(lambda k: self[k],keys)
+            elements += [self[k] for k in keys]
             self._string = '-'.join(map(str,elements))
         return self._string
 
@@ -75,7 +76,7 @@ class Action(dict):
         doc = Document()
         root = doc.createElement('action')
         doc.appendChild(root)
-        for key,value in self.items():
+        for key,value in list(self.items()):
             node = doc.createElement('entry')
             node.setAttribute('key',key)
             node.appendChild(doc.createTextNode(str(value)))
@@ -110,9 +111,9 @@ class ActionSet(frozenset):
             iterable = [elements]
         elif isinstance(elements, dict):
             if(len(elements)==1):
-                iterable = ActionSet(elements.values()[0])
+                iterable = ActionSet(list(elements.values())[0])
             else:
-                iterable = reduce(ActionSet.union, elements.values(), ActionSet())
+                iterable = reduce(ActionSet.union, list(elements.values()), ActionSet())
         elif isinstance(elements,Element):
             iterable = []
             node = elements.firstChild
@@ -143,8 +144,8 @@ class ActionSet(frozenset):
         @rtype: L{Action}
         """
         for action in self:
-            for key,value in pattern.items():
-                if not action.has_key(key) or action[key] != value:
+            for key,value in list(pattern.items()):
+                if key not in action or action[key] != value:
                     # Mismatch
                     break
             else:
@@ -158,8 +159,8 @@ class ActionSet(frozenset):
         elements = list(self)
         result = elements[0][key]
         for atom in elements[1:]:
-            if atom.has_key(key) and atom[key] != result:
-                raise ValueError,'Conflicting values for key: %s' % (key)
+            if key in atom and atom[key] != result:
+                raise ValueError('Conflicting values for key: %s' % (key))
         return result
 
     def __str__(self):
@@ -192,7 +193,7 @@ def filterActions(pattern,actions):
     @type pattern: dict
     @return: the subset of given actions that match the given pattern
     """
-    return filter(lambda a: a.match(pattern),actions)
+    return [a for a in actions if a.match(pattern)]
 
 def powerset(iterable):
     """
@@ -206,8 +207,8 @@ if __name__ == '__main__':
     act1 = Action({'subject': 'I','verb': 'help','object': 'you'})    
     act2 = Action({'subject': 'you','verb': 'help','object': 'I'})
     old = ActionSet([act1,act2])
-    print old
+    print(old)
     doc = parseString(old.__xml__().toprettyxml())
     new = ActionSet(doc.documentElement.childNodes)
-    print new
-    print old == new
+    print(new)
+    print(old == new)

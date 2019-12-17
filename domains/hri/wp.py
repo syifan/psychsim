@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import csv
 import datetime
 import os
@@ -33,7 +33,7 @@ SEQUENCE = [
     
 if __name__ == '__main__':
     # Open connection to database
-    config = ConfigParser.SafeConfigParser()
+    config = configparser.SafeConfigParser()
     config.read('db.cfg')
     if not config.has_section('mysql'):
         config.add_section('mysql')
@@ -70,29 +70,29 @@ if __name__ == '__main__':
             if log[-1]['start'] > cutoff:
                 # Make sure mission was complete
                 if log[0]['type'] == 'complete':
-                    if not logs.has_key(user):
+                    if user not in logs:
                         logs[user] = {}
                     logs[user][mission] = log
                     # Determine condition (embodiment not in logs due to sloppy programming)
-                    if not sequences.has_key(user):
+                    if user not in sequences:
                         query = 'SELECT htp_sequence_value_used FROM hri_trust_player '\
                                 'WHERE htp_amazon_id="%s"' % (f[:-6])
                         cursor.execute(query)
                         sequences[user] = int(cursor.fetchone()['htp_sequence_value_used'])
                 else:
-                    print >> sys.stderr,'User %d did not complete mission %d' % (user,mission+1)
+                    print('User %d did not complete mission %d' % (user,mission+1), file=sys.stderr)
     valid = []
     for user in sorted(logs.keys()):
         if len(logs[user]) == 8:
             valid.append(user)
         else:
-            print >> sys.stderr, 'User %d did not complete 8 missions' % (user)
-    print '%d Valid Users' % (len(valid))
+            print('User %d did not complete 8 missions' % (user), file=sys.stderr)
+    print('%d Valid Users' % (len(valid)))
     data = []
     decisionCases = ['true+', 'false+', 'true-', 'false-']
     for user in valid:
         for mission in range(8):
-            print 'User %d, Mission %d' % (user,mission+1)
+            print('User %d, Mission %d' % (user,mission+1))
             # Process the data from this mission
             datum = {'user': 'WP%03d' % (user),'mission': mission+1,'deaths': 0}
             for case in decisionCases:
@@ -133,7 +133,7 @@ if __name__ == '__main__':
                             case = 'false-'
                     datum[case] += 1
                     datum['%s_%s' % (choice,case)] += 1
-            if not datum.has_key('acknowledgment'):
+            if 'acknowledgment' not in datum:
                 datum['acknowledgment'] = False
             # Condition check
             condition = (sequences[user]+mission) % 8
@@ -146,8 +146,8 @@ if __name__ == '__main__':
             data.append(datum)
             decisions = sum([datum[case] for case in decisionCases])
             if decisions != 15:
-                print '\n'.join(['%s\n%s' % (e['type'],str(e)) for e in log])
-                raise ValueError,'\tOnly %d/15 decisions\n%s' % (decisions,datum)
+                print('\n'.join(['%s\n%s' % (e['type'],str(e)) for e in log]))
+                raise ValueError('\tOnly %d/15 decisions\n%s' % (decisions,datum))
     # Write data to file
     with open('wpdata.csv', 'w') as csvfile:
         fieldnames = ['user','mission','explanation','acknowledgment','embodiment','time','deaths']

@@ -4,8 +4,9 @@ Class and function definitions for PieceWise Linear (PWL) representations
 import copy
 import operator
 from xml.dom.minidom import Document,Node
-from probability import Distribution
-from action import Action
+from .probability import Distribution
+from .action import Action
+from functools import reduce
 
 CONSTANT = ''
 
@@ -52,7 +53,7 @@ class KeyedVector(dict):
 
     def __add__(self,other):
         result = KeyedVector(self)
-        for key,value in other.items():
+        for key,value in list(other.items()):
             try:
                 result[key] += value
             except KeyError:
@@ -63,7 +64,7 @@ class KeyedVector(dict):
         # todo Pedro added copy vector
         # result = KeyedVector()
         result = KeyedVector(self)
-        for key,value in self.items():
+        for key,value in list(self.items()):
             result[key] = -value
         return result
 
@@ -74,30 +75,30 @@ class KeyedVector(dict):
         if isinstance(other,KeyedVector):
             # Dot product
             total = 0.
-            for key,value in self.items():
-                if other.has_key(key):
+            for key,value in list(self.items()):
+                if key in other:
                     total += value*other[key]
             return total
         elif isinstance(other,float):
             # Scaling
             result = KeyedVector()
-            for key,value in self.items():
+            for key,value in list(self.items()):
                 result[key] = value*other
             return result
         elif isinstance(other,KeyedMatrix):
             # Transform vector
             result = KeyedVector()
-            for key in self.keys():
-                if other.has_key(key):
-                    for col in other[key].keys():
+            for key in list(self.keys()):
+                if key in other:
+                    for col in list(other[key].keys()):
                         try:
                             result[col] += self[key]*other[key][col]
                         except KeyError:
                             result[col] = self[key]*other[key][col]
             return result
         else:
-            raise TypeError,'Unable to multiply %s by %s' % \
-                (self.__class__.__name__,other.__class__.__name__)
+            raise TypeError('Unable to multiply %s by %s' % \
+                (self.__class__.__name__,other.__class__.__name__))
 
     def __setitem__(self,key,value):
         # todo Pedro added check existing
@@ -111,12 +112,12 @@ class KeyedVector(dict):
         self._string = None
 
     def update(self, dic):
-        for key, value in dic.iteritems():
+        for key, value in dic.items():
             self[key] = value
 
     def desymbolize(self,table,debug=False):
         result = self.__class__()
-        for key,value in self.items():
+        for key,value in list(self.items()):
             if isinstance(value,str):
                 try:
                     result[key] = eval(value,globals(),table)
@@ -137,7 +138,7 @@ class KeyedVector(dict):
         else:
             test = ignore
         result = self.__class__()
-        for key in filter(test,self.keys()):
+        for key in filter(test,list(self.keys())):
             result[key] = self[key]
         return result
 
@@ -161,15 +162,15 @@ class KeyedVector(dict):
         @rtype: float
         """
         d = 0.
-        for key in self.keys():
+        for key in list(self.keys()):
             d += pow(self[key]-vector[key],2)
         return d
 
     def __str__(self):
         if self._string is None:
-            keys = self.keys()
+            keys = list(self.keys())
             keys.sort()
-            self._string = '\n'.join(map(lambda k: '%s: %s' % (k,self[k]),keys))
+            self._string = '\n'.join(['%s: %s' % (k,self[k]) for k in keys])
         return self._string
 
     def __repr__(self):
@@ -181,7 +182,7 @@ class KeyedVector(dict):
     def __xml__(self):
         doc = Document()
         root = doc.createElement('vector')
-        for key,value in self.items():
+        for key,value in list(self.items()):
             node = doc.createElement('entry')
             node.setAttribute('key',key)
             node.setAttribute('value',str(value))
@@ -240,7 +241,7 @@ class VectorDistribution(Distribution):
             old = str(row)
             prob = self[old]
             newProbs = [[row.__class__(row),prob]]
-            for key, value in keyValues.iteritems():
+            for key, value in keyValues.items():
                 if isinstance(value, Distribution):
                     valDomain = value.domain()
                     toAdd = []
@@ -304,7 +305,7 @@ class VectorDistribution(Distribution):
         if incremental:
             # Sample each key and keep track how likely each individual choice was
             sample = KeyedVector()
-            keys = self.domain()[0].keys()
+            keys = list(self.domain()[0].keys())
             index = 0
             while len(self) > 1:
                 key = keys[index]
@@ -333,7 +334,7 @@ class VectorDistribution(Distribution):
         @rtype: bool
         """
         for vector in self.domain():
-            if not vector.has_key(key):
+            if key not in vector:
                 return False
         return True
 
@@ -376,19 +377,19 @@ class KeyedMatrix(dict):
 
     def __neg__(self):
         result = KeyedMatrix()
-        for key,vector in self.items():
+        for key,vector in list(self.items()):
             result[key] = -vector
         return result
 
     def __add__(self,other):
         result = KeyedMatrix()
-        for key,vector in self.items():
+        for key,vector in list(self.items()):
             try:
                 result[key] = vector + other[key]
             except KeyError:
                 result[key] = KeyedVector(vector)
-        for key,vector in other.items():
-            if not result.has_key(key):
+        for key,vector in list(other.items()):
+            if key not in result:
                 result[key] = KeyedVector(vector)
         return result
 
@@ -398,20 +399,20 @@ class KeyedMatrix(dict):
     def __mul__(self,other):
         if isinstance(other,KeyedMatrix):
             result = KeyedMatrix()
-            for r1,v1 in self.items():
+            for r1,v1 in list(self.items()):
                 result[r1] = KeyedVector()
-                for c1,value1 in v1.items():
-                    if other.has_key(c1):
-                        for c2,value2 in other[c1].items():
+                for c1,value1 in list(v1.items()):
+                    if c1 in other:
+                        for c2,value2 in list(other[c1].items()):
                             try:
                                 result[r1][c2] += value1*value2
                             except KeyError:
                                 result[r1][c2] = value1*value2
         elif isinstance(other,KeyedVector):
             result = KeyedVector()
-            for r1,v1 in self.items():
-                for c1,value1 in v1.items():
-                    if other.has_key(c1):
+            for r1,v1 in list(self.items()):
+                for c1,value1 in list(v1.items()):
+                    if c1 in other:
                         try:
                             result[r1] += value1*other[c1]
                         except KeyError:
@@ -425,8 +426,8 @@ class KeyedMatrix(dict):
                 except KeyError:
                     result[product] = other[vector]
         else:
-            raise TypeError,'Unable to multiply %s by %s' % \
-                (self.__class__.__name__,other.__class__.__name__)
+            raise TypeError('Unable to multiply %s by %s' % \
+                (self.__class__.__name__,other.__class__.__name__))
         return result
 
     def getKeysIn(self):
@@ -436,7 +437,7 @@ class KeyedMatrix(dict):
         if self._keysIn is None:
             self._keysIn = set()
             self._keysOut = set()
-            for col,row in self.items():
+            for col,row in list(self.items()):
                 self._keysIn |= set(row.keys())
                 self._keysOut.add(col)
         return self._keysIn
@@ -457,18 +458,18 @@ class KeyedMatrix(dict):
 
     def desymbolize(self,table,debug=False):
         result = self.__class__()
-        for key,row in self.items():
+        for key,row in list(self.items()):
             result[key] = row.desymbolize(table)
         return result
 
     def scale(self,table):
         result = self.__class__()
-        for row,vector in self.items():
-            if table.has_key(row):
+        for row,vector in list(self.items()):
+            if row in table:
                 result[row] = KeyedVector()
                 lo,hi = table[row]
                 constant = 0.
-                for col,value in vector.items():
+                for col,value in list(vector.items()):
                     if col == row:
                         # Same value
                         result[row][col] = value
@@ -476,12 +477,12 @@ class KeyedMatrix(dict):
                     elif col != CONSTANT:
                         # Scale weight for another feature
                         if abs(value) > vector.epsilon:
-                            assert table.has_key(col),'Unable to mix symbolic and numeric values in single vector'
+                            assert col in table,'Unable to mix symbolic and numeric values in single vector'
                             colLo,colHi = table[col]
                             result[row][col] = value*(colHi-colLo)*(hi-lo)
                             constant += value*colLo
                 result[row][CONSTANT] = constant - lo
-                if vector.has_key(CONSTANT):
+                if CONSTANT in vector:
                     result[row][CONSTANT] += vector[CONSTANT]
                 result[row][CONSTANT] /- (hi-lo)
             else:
@@ -500,7 +501,7 @@ class KeyedMatrix(dict):
 
     def update(self,other):
         # todo Pedro added do not reset string if it does not change
-        for key,value in other.iteritems():
+        for key,value in other.items():
             self[key]=value
         # self._string = None
         # dict.update(self,other)
@@ -509,7 +510,7 @@ class KeyedMatrix(dict):
         if self._string is None:
             joiner = lambda item: '%s*%s' % (item[1], item[0])
             self._string = '\n'.join(
-                map(lambda item: '%s) %s' % (item[0], ' + '.join(map(joiner, item[1].items()))), self.items()))
+                ['%s) %s' % (item[0], ' + '.join(map(joiner, list(item[1].items())))) for item in list(self.items())])
         return self._string
 
     def __hash__(self):
@@ -518,7 +519,7 @@ class KeyedMatrix(dict):
     def __xml__(self):
         doc = Document()
         root = doc.createElement('matrix')
-        for key,value in self.items():
+        for key,value in list(self.items()):
             element = value.__xml__().documentElement
             element.setAttribute('key',key)
             root.appendChild(element)
@@ -611,7 +612,7 @@ class MatrixDistribution(Distribution):
 
     def __mul__(self,other):
         if isinstance(other,Distribution):
-            raise NotImplementedError,'Unable to multiply two distributions.'
+            raise NotImplementedError('Unable to multiply two distributions.')
         else:
             result = {}
             for element in self.domain():
@@ -624,7 +625,7 @@ class MatrixDistribution(Distribution):
             elif isinstance(other,KeyedMatrix):
                 return self.__class__(result)
             else:
-                raise TypeError,'Unable to process multiplication by %s' % (other.__class__.__name__)
+                raise TypeError('Unable to process multiplication by %s' % (other.__class__.__name__))
 
     def element2xml(self,value):
         return value.__xml__().documentElement
@@ -664,7 +665,7 @@ class KeyedPlane:
             else:
                 return abs(total-self.threshold) < self.vector.epsilon
         else:
-            raise ValueError,'Unknown comparison for %s: %s' % (self.__class__.__name__,self.comparison)
+            raise ValueError('Unknown comparison for %s: %s' % (self.__class__.__name__,self.comparison))
 
     def desymbolize(self,table,debug=False):
         threshold = self.desymbolizeThreshold(self.threshold,table)
@@ -687,9 +688,9 @@ class KeyedPlane:
         threshold = self.threshold
         symbolic = False
         span = None
-        assert not vector.has_key(CONSTANT),'Unable to scale hyperplanes with constant factors. Move constant factor into threshold.'
-        for key in vector.keys():
-            if table.has_key(key):
+        assert CONSTANT not in vector,'Unable to scale hyperplanes with constant factors. Move constant factor into threshold.'
+        for key in list(vector.keys()):
+            if key in table:
                 assert not symbolic,'Unable to scale hyperplanes with both numeric and symbolic variables'
                 if span is None:
                     span = table[key]
@@ -765,7 +766,7 @@ class KeyedPlane:
         @return: an equivalent plane with no constant element in the weights
         """
         weights = self.vector.__class__(self.vector)
-        if self.vector.has_key(CONSTANT):
+        if CONSTANT in self.vector:
             threshold = self.threshold - self.vector[CONSTANT]
             del weights[CONSTANT]
         else:
@@ -775,7 +776,7 @@ class KeyedPlane:
     def __str__(self):
         if self._string is None:
             operator = ['==','>','<'][self.comparison]
-            self._string = '%s %s %s' % (' + '.join(map(lambda (k,v): '%5.3f*%s' % (v,k),self.vector.items())),
+            self._string = '%s %s %s' % (' + '.join(['%5.3f*%s' % (k_v[1],k_v[0]) for k_v in list(self.vector.items())]),
                                              operator,self.threshold)
         return self._string
 
@@ -910,7 +911,7 @@ class KeyedTree:
                 # Keys are taken from each child
                 children = self.children.domain()
             else:
-                children = self.children.values()
+                children = list(self.children.values())
                 if not self.isLeaf():
                     # Keys also include those in the branch
                     self._keysIn |= set(self.branch.vector.keys())
@@ -1031,7 +1032,7 @@ class KeyedTree:
         if self.isLeaf():
             tMatrix = self.children[None]
             assert len(tMatrix) == 1,'Unable to handle dynamics of more than one feature'
-            assert tMatrix.has_key(key),'Are you sure you should be flooring me on a key I don\'t have?'
+            assert key in tMatrix,'Are you sure you should be flooring me on a key I don\'t have?'
             del self.children[None]
             fMatrix = setToConstantMatrix(key,lo)
             branch = KeyedPlane(KeyedVector(tMatrix[key]),lo)
@@ -1054,7 +1055,7 @@ class KeyedTree:
         if self.isLeaf():
             fMatrix = self.children[None]
             assert len(fMatrix) == 1,'Unable to handle dynamics of more than one feature'
-            assert fMatrix.has_key(key),'Are you sure you should be ceiling me on a key I don\'t have?'
+            assert key in fMatrix,'Are you sure you should be ceiling me on a key I don\'t have?'
             del self.children[None]
             tMatrix = setToConstantMatrix(key,hi)
             branch = KeyedPlane(KeyedVector(fMatrix[key]),hi)
@@ -1326,13 +1327,13 @@ class KeyedTree:
         if self._string is None:
             if self.isLeaf():
                 self._string = str(self.children[None])
-            elif self.children.has_key(True):
+            elif True in self.children:
                 # Deterministic branch
                 self._string = 'if %s\nThen\t%s\nElse\t%s' % (str(self.branch),str(self.children[True]).replace('\n','\n\t'),
                                                       str(self.children[False]).replace('\n','\n\t'))
             else:
                 # Probabilistic branch
-                self._string = '\n'.join(map(lambda el: '%d%%: %s' % (100.*self.children[el],str(el)),self.children.domain()))
+                self._string = '\n'.join(['%d%%: %s' % (100.*self.children[el],str(el)) for el in self.children.domain()])
         return self._string
 
     def __xml__(self):
@@ -1344,7 +1345,7 @@ class KeyedTree:
         if isinstance(self.children,Distribution):
             root.appendChild(self.children.__xml__().documentElement)
         else:
-            for key,value in self.children.items():
+            for key,value in list(self.children.items()):
                 if isinstance(value,bool):
                     node = doc.createElement('bool')
                     node.setAttribute('value',str(value))
@@ -1426,12 +1427,12 @@ def makeTree(table):
     elif isinstance(table,frozenset):
         # Set leaf (e.g., ActionSet for a policy)
         return KeyedTree(table)
-    elif table.has_key('if'):
+    elif 'if' in table:
         # Deterministic branch
         tree = KeyedTree()
         tree.makeBranch(table['if'],makeTree(table[True]),makeTree(table[False]))
         return tree
-    elif table.has_key('distribution'):
+    elif 'distribution' in table:
         # Probabilistic branch
         tree = KeyedTree()
         branch = {}
